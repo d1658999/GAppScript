@@ -8,8 +8,8 @@ function driveImagesToSlides() {
     const sheet = ss.getActiveSheet();
 
     // Get the URLs from cells A1 and A2
-    const driveFolderUrl = sheet.getRange('A1').getValue();
-    const slidesPresentationUrl = sheet.getRange('A2').getValue();
+    const driveFolderUrl = sheet.getRange('B1').getValue();
+    const slidesPresentationUrl = sheet.getRange('B2').getValue();
 
     if (!driveFolderUrl || !slidesPresentationUrl) {
         Logger.log('Please enter the Google Drive folder URL in cell A1 and the Google Slides presentation URL in cell A2.');
@@ -21,6 +21,7 @@ function driveImagesToSlides() {
         // Extract IDs from URLs
         const folderId = extractIdFromUrl_(driveFolderUrl);
         const presentationId = extractIdFromUrl_(slidesPresentationUrl);
+        const targetSlideId = extractSlideIdFromUrl_(slidesPresentationUrl); // Extract slide ID from URL
 
         if (!folderId) {
             Logger.log('Invalid Google Drive folder URL in A1.');
@@ -38,6 +39,14 @@ function driveImagesToSlides() {
         const presentation = SlidesApp.openById(presentationId);
         const slides = presentation.getSlides();
 
+        // Find the target slide index
+        let targetSlideIndex = slides.findIndex(slide => slide.getObjectId() === targetSlideId);
+        if (targetSlideIndex === -1) {
+            Logger.log('Target slide not found in the presentation.');
+            SpreadsheetApp.getUi().alert('Target slide not found in the presentation.');
+            return;
+        }
+
         // Get PNG files from the folder and sort them by name
         const filesIterator = folder.getFilesByType(MimeType.PNG);
         const fileList = [];
@@ -51,8 +60,14 @@ function driveImagesToSlides() {
         for (const file of fileList) {
             const imageBlob = file.getBlob();
 
-            // Append a new blank slide
-            const slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+            // Insert a new blank slide after the target slide
+            let slide;
+            try {
+                slide = presentation.insertSlide(targetSlideIndex + 1, SlidesApp.PredefinedLayout.BLANK);
+            } catch (e) {
+                // Fallback: use default layout if BLANK is not available
+                slide = presentation.insertSlide(targetSlideIndex + 1, presentation.getSlides()[0].getLayout());
+            }
 
             // Insert the image onto the slide
             const image = slide.insertImage(imageBlob);
@@ -74,6 +89,7 @@ function driveImagesToSlides() {
             image.setTop(top);
 
             imageCount++;
+            targetSlideIndex++; // Update index to insert subsequent slides after the last inserted slide
             Logger.log(`Inserted image: ${file.getName()}`);
         }
 
@@ -130,4 +146,15 @@ function extractIdFromUrl_(url) {
 
 
     return id;
+}
+
+/**
+ * Helper function to extract the slide ID from a Google Slides URL.
+ * @param {string} url The URL to extract the slide ID from.
+ * @return {string|null} The extracted slide ID or null if not found.
+ * @private
+ */
+function extractSlideIdFromUrl_(url) {
+    const match = url.match(/slide=id\.([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
 }
