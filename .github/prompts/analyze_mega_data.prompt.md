@@ -11,4 +11,6 @@
 6. Add any necessary titles or descriptions to the slide.
 7. chartAspectRatio is 5:1, so make sure the images are resized accordingly.
 8. don't need to the title of the chart
+9. retain the chart format or picture of the X-axis and Y-axis same as in Google Sheets.
+10. please refer to `gsheet_picture_sample.PNG` the picture in google sheet, I hope the same style and x-axis and y-axis is same as in the Google Sheets.
 
