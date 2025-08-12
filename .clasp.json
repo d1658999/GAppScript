@@ -1,0 +1,16 @@
+{
+  "scriptId": "15Ih5VL11JWUxh4HAll02g1tT1QAFvOIwlmzpKYUS3QrC6Q0arQXyV_io",
+  "rootDir": "mega_data",
+  "scriptExtensions": [
+    ".js",
+    ".gs"
+  ],
+  "htmlExtensions": [
+    ".html"
+  ],
+  "jsonExtensions": [
+    ".json"
+  ],
+  "filePushOrder": [],
+  "skipSubdirectories": false
+}
