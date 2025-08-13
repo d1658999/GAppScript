@@ -2,7 +2,24 @@
 
 ## 概述
 
-這個 Google Apps Script 專案會自動從指定的 Google Sheets 分頁中擷取特定的圖表，並將這些圖表以保持原始比例的方式插入到 Google Slides 簡報中。系統支援多張投影片，每張投影片最多放置三個圖表。
+這個 Google Apps Script 專案會自動從指定的 Google Sh### 測試功能
+
+可以使用以下測試函式：
+
+- `runManualExportDownload()` - **🌟 最新推薦**：模擬手動右鍵「Download Chart」→「PNG IMAGE(.PNG)」
+- `runAPIDownload()` - 使用 API 方法下載圖表
+- `compareDownloadMethods()` - **推薦**：比較所有 5 種下載方法，選擇最佳品質
+- `runOriginalChartDownload()` - 使用截圖方法確保原始圖片
+- `runDirectChartDownload()` - 直接取得圖表原始 Blob
+- `runChartDownload()` - 傳統下載方法
+- `runBatchDownload()` - 批次下載並提供詳細說明
+- `listExistingDownloads()` - 列出現有的下載資料夾
+- `quickTest()` - 快速測試連線
+- `testChartFiltering()` - 測試圖表識別功能（不建立投影片）
+- `testMultiSlideFeature()` - 測試多投影片功能
+- `demoProportionalLayout()` - 演示比例保持功能
+- `testScreenshotStyleLayout()` - 測試截圖樣式排版效果
+- `demoScreenshotTitleStyle()` - 演示截圖樣式標題格式表，並將這些圖表以保持原始比例的方式插入到 Google Slides 簡報中。系統支援多張投影片，每張投影片最多放置三個圖表。
 
 ## 目標圖表
 
@@ -35,6 +52,7 @@
 ## 檔案結構
 
 - `analyze_mega_data.gs` - 主要功能實作
+- `download_charts.gs` - 圖表下載功能
 - `demo.gs` - 示範和測試函式
 - `appsscript.json` - 專案設定檔
 - `README.md` - 使用說明文件
@@ -52,16 +70,31 @@
 
 在 Google Apps Script 編輯器中：
 
+**完成 prompt 指示檔案的所有要求（推薦）：**
+1. 開啟 `demo.gs` 檔案
+2. 執行 `completePromptRequirements()` 函式
+3. 這會自動完成：開啟分頁 → 取得圖表截圖 → 下載到 Google Drive
+
+**僅建立 Google Slides：**
 1. 開啟 `demo.gs` 檔案
 2. 執行 `runMegaDataAnalysis()` 函式
-3. 首次執行時會要求授權，請同意所有權限要求
+
+**僅下載圖表檔案：**
+1. 開啟 `demo.gs` 檔案
+2. 執行 `runChartDownload()` 或 `runBatchDownload()` 函式
+
+首次執行時會要求授權，請同意所有權限要求。
 
 ### 3. 測試功能
 
 可以使用以下測試函式：
 
+- `completePromptRequirements()` - **主要執行函式**，完成所有 prompt 要求
 - `quickTest()` - 快速測試連線
 - `testChartFiltering()` - 測試圖表識別功能（不建立投影片）
+- `runChartDownload()` - 僅下載圖表到 Google Drive
+- `runBatchDownload()` - 批次下載圖表並提供詳細說明
+- `listExistingDownloads()` - 列出現有的下載資料夾
 - `testMultiSlideFeature()` - 測試多投影片功能
 - `demoProportionalLayout()` - 演示比例保持功能
 - `testScreenshotStyleLayout()` - 測試截圖樣式排版效果
@@ -75,6 +108,18 @@
 - 將圖表轉換為圖片格式
 - 在 Google Slides 中建立適當數量的新投影片
 - 以保持原始比例的方式插入圖片，每張投影片最多 3 個圖表
+
+### `downloadChartsFromSheet()`
+- 從 Google Sheets 取得指定分頁的所有圖表
+- 篩選出目標圖表並轉換為圖片格式
+- 在 Google Drive 中建立時間戳記資料夾
+- 下載所有圖表檔案到 Google Drive，保持原始圖片格式
+- 提供下載連結供使用者下載到本機電腦
+
+### `completePromptRequirements()`
+- 一鍵完成 get_chart_google_sheet.prompt.md 中的所有要求
+- 自動執行：開啟分頁 → 取得圖表 → 下載到 Google Drive
+- 提供完整的下載指南和連結
 
 ### `createSlidesWithCharts()`
 - 支援多張投影片建立
