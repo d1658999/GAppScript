@@ -78,7 +78,7 @@ function executeAnalysis() {
 function getSlideTitle(sheet, cellAddress = TITLE_CELL) {
     try {
         const cellValue = sheet.getRange(cellAddress).getValue();
-        
+
         // 檢查儲存格內容
         if (cellValue && cellValue.toString().trim() !== '') {
             const title = cellValue.toString().trim();
@@ -808,7 +808,7 @@ function testSlideTitle() {
     Logger.log('='.repeat(50));
     Logger.log('測試投影片標題功能（儲存格 X2）');
     Logger.log('='.repeat(50));
-    
+
     try {
         // 開啟 Google Sheets 並取得目標分頁
         const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -819,24 +819,24 @@ function testSlideTitle() {
         }
 
         Logger.log(`✅ 成功開啟分頁: ${TARGET_SHEET_NAME}`);
-        
+
         // 測試讀取儲存格 X2
         Logger.log(`🎯 嘗試讀取儲存格 ${TITLE_CELL} 的內容...`);
-        
+
         const slideTitle = getSlideTitle(targetSheet);
-        
+
         Logger.log(`📝 標題結果: "${slideTitle}"`);
         Logger.log(`📋 備用標題: "${SLIDE_TITLE}"`);
-        
+
         // 測試不同投影片數量的標題格式
         Logger.log('\n📄 測試標題格式：');
         Logger.log(`單張投影片: "${slideTitle}"`);
         Logger.log(`多張投影片 (1/2): "${slideTitle} (1/2)"`);
         Logger.log(`多張投影片 (2/3): "${slideTitle} (2/3)"`);
-        
+
         Logger.log('\n✅ 投影片標題測試完成');
         return slideTitle;
-        
+
     } catch (error) {
         Logger.log(`❌ 測試失敗: ${error.message}`);
         throw error;
