@@ -48,3 +48,4 @@ function exportChartAsImageCorrectly() {
 - the first picture in the slide should be at X: 0.21 inch, Y: 1.11 inch
 - the second picture in the slide should be at X: 2.94 inches, Y: 2.55 inches
 - the third picture in the slide should be at X: 0.21 inches, Y: 3.98 inches
+12. the title of slide should be used for the content ofthe cell `X2`

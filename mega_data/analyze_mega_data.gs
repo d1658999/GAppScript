@@ -8,7 +8,8 @@
 const SPREADSHEET_ID = '1nnzLzALFvtwW0Lz8aVGCw7O0iaPXwN3_wRUF3BC2iak';
 const PRESENTATION_ID = '1_zV6grTwFms2a0jE2i9Tz0X6mjbnCpZk8VDKIyBLxi8';
 const TARGET_SHEET_NAME = '[NR_TX_LMH]Summary&NR_Test_1';
-const SLIDE_TITLE = 'MEGA 資料分析 - NR TX LMH 測試結果';
+const SLIDE_TITLE = 'MEGA 資料分析 - NR TX LMH 測試結果'; // 備用標題
+const TITLE_CELL = 'X2'; // 儲存格位置，用於取得投影片標題（根據 prompt 第12點）
 
 // 目標圖表名稱（只處理這些特定圖表）
 const TARGET_CHART_TITLES = [
@@ -68,6 +69,32 @@ function executeAnalysis() {
 }
 
 /**
+ * 讀取指定儲存格的內容作為投影片標題（根據 prompt 第12點）
+ * @param {Sheet} sheet Google Sheets 工作表物件
+ * @param {string} cellAddress 儲存格地址（如 'X2'）
+ * @return {string} 儲存格內容，如果為空則使用備用標題
+ * @permission SpreadsheetApp
+ */
+function getSlideTitle(sheet, cellAddress = TITLE_CELL) {
+    try {
+        const cellValue = sheet.getRange(cellAddress).getValue();
+        
+        // 檢查儲存格內容
+        if (cellValue && cellValue.toString().trim() !== '') {
+            const title = cellValue.toString().trim();
+            Logger.log(`從儲存格 ${cellAddress} 讀取標題: "${title}"`);
+            return title;
+        } else {
+            Logger.log(`儲存格 ${cellAddress} 為空，使用備用標題`);
+            return SLIDE_TITLE;
+        }
+    } catch (error) {
+        Logger.log(`讀取儲存格 ${cellAddress} 失敗: ${error.message}，使用備用標題`);
+        return SLIDE_TITLE;
+    }
+}
+
+/**
  * 主要執行函式 - 分析 MEGA 資料並建立投影片
  * @permission SpreadsheetApp, SlidesApp, DriveApp
  */
@@ -84,6 +111,9 @@ function analyzeMegaData() {
         }
 
         Logger.log(`成功開啟分頁: ${TARGET_SHEET_NAME}`);
+
+        // 步驟 1.5: 讀取儲存格 X2 的內容作為投影片標題（根據 prompt 第12點）
+        const slideTitle = getSlideTitle(targetSheet);
 
         // 步驟 2: 取得分頁中的所有圖表並篩選目標圖表
         const allCharts = targetSheet.getCharts();
@@ -109,7 +139,7 @@ function analyzeMegaData() {
 
         // 步驟 4: 開啟 Google Slides 並建立新投影片
         const presentation = SlidesApp.openById(PRESENTATION_ID);
-        const slides = createSlidesWithCharts(presentation, chartBlobs);
+        const slides = createSlidesWithCharts(presentation, chartBlobs, slideTitle);
 
         Logger.log('MEGA 資料分析完成！');
         Logger.log(`建立了 ${slides.length} 張投影片`);
@@ -436,10 +466,11 @@ function exportChartAsImageCorrectly(chart, chartTitle) {
  * 建立投影片並插入圖表（支援多張投影片）
  * @param {Presentation} presentation Google Slides 簡報物件
  * @param {Object[]} chartData 包含圖片 Blob 和標題的物件陣列
+ * @param {string} customTitle 自訂投影片標題（從儲存格 X2 讀取）
  * @return {Slide[]} 建立的投影片陣列
  * @permission SlidesApp
  */
-function createSlidesWithCharts(presentation, chartData) {
+function createSlidesWithCharts(presentation, chartData, customTitle = null) {
     const slides = [];
     const totalCharts = chartData.length;
 
@@ -457,8 +488,8 @@ function createSlidesWithCharts(presentation, chartData) {
         // 建立新投影片
         const slide = presentation.appendSlide(SlidesApp.PredefinedLayout.BLANK);
 
-        // 添加標題
-        addSlideTitle(slide, slideIndex + 1, totalSlides);
+        // 添加標題（使用自訂標題或預設標題）
+        addSlideTitle(slide, slideIndex + 1, totalSlides, customTitle);
 
         // 計算保持原始比例的排版
         const layout = calculateProportionalLayout(chartsForThisSlide.length);
@@ -485,19 +516,24 @@ function createNewSlideWithCharts(presentation, chartData) {
 }
 
 /**
- * 為投影片添加標題（根據截圖樣式調整）
+ * 為投影片添加標題（使用儲存格 X2 的內容，根據 prompt 第12點）
  * @param {Slide} slide 投影片物件
  * @param {number} slideNumber 投影片編號（可選）
  * @param {number} totalSlides 總投影片數（可選）
+ * @param {string} customTitle 自訂標題（從儲存格 X2 讀取）
  * @permission SlidesApp
  */
-function addSlideTitle(slide, slideNumber = 1, totalSlides = 1) {
-    let title = SLIDE_TITLE;
+function addSlideTitle(slide, slideNumber = 1, totalSlides = 1, customTitle = null) {
+    // 使用自訂標題或預設標題
+    let baseTitle = customTitle || SLIDE_TITLE;
+    let title = baseTitle;
 
     // 如果有多張投影片，在標題中加入頁碼
     if (totalSlides > 1) {
-        title = `${SLIDE_TITLE} (${slideNumber}/${totalSlides})`;
+        title = `${baseTitle} (${slideNumber}/${totalSlides})`;
     }
+
+    Logger.log(`設定投影片標題: "${title}"`);
 
     const titleBox = slide.insertTextBox(title);
     titleBox.setLeft(20);          // 稍微縮進
@@ -761,6 +797,51 @@ function addChartLabel(slide, title, x, y, layout) {
 
     } catch (error) {
         Logger.log(`添加圖表標籤失敗: ${error.message}`);
+    }
+}
+
+/**
+ * 測試儲存格 X2 標題讀取功能（根據 prompt 第12點）
+ * @permission SpreadsheetApp
+ */
+function testSlideTitle() {
+    Logger.log('='.repeat(50));
+    Logger.log('測試投影片標題功能（儲存格 X2）');
+    Logger.log('='.repeat(50));
+    
+    try {
+        // 開啟 Google Sheets 並取得目標分頁
+        const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+        const targetSheet = spreadsheet.getSheetByName(TARGET_SHEET_NAME);
+
+        if (!targetSheet) {
+            throw new Error(`找不到分頁: ${TARGET_SHEET_NAME}`);
+        }
+
+        Logger.log(`✅ 成功開啟分頁: ${TARGET_SHEET_NAME}`);
+        
+        // 測試讀取儲存格 X2
+        Logger.log(`🎯 嘗試讀取儲存格 ${TITLE_CELL} 的內容...`);
+        
+        const slideTitle = getSlideTitle(targetSheet);
+        
+        Logger.log(`📝 標題結果: "${slideTitle}"`);
+        Logger.log(`📋 備用標題: "${SLIDE_TITLE}"`);
+        
+        // 測試不同投影片數量的標題格式
+        Logger.log('\n📄 測試標題格式：');
+        Logger.log(`單張投影片: "${slideTitle}"`);
+        Logger.log(`多張投影片 (1/2): "${slideTitle} (1/2)"`);
+        Logger.log(`多張投影片 (2/3): "${slideTitle} (2/3)"`);
+        
+        Logger.log('\n✅ 投影片標題測試完成');
+        return slideTitle;
+        
+    } catch (error) {
+        Logger.log(`❌ 測試失敗: ${error.message}`);
+        throw error;
+    } finally {
+        Logger.log('='.repeat(50));
     }
 }
 
