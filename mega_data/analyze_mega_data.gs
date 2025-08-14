@@ -5,9 +5,15 @@
  */
 
 // 常數定義
-const SPREADSHEET_ID = '1nnzLzALFvtwW0Lz8aVGCw7O0iaPXwN3_wRUF3BC2iak';
-const PRESENTATION_ID = '1_zV6grTwFms2a0jE2i9Tz0X6mjbnCpZk8VDKIyBLxi8';
-const TARGET_SHEET_NAME = '[NR_TX_LMH]Summary&NR_Test_1';
+const SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId();
+const PRESENTATION_ID = SpreadsheetApp.getActiveSpreadsheet()
+    .getSheetByName('Upload_Link')
+    .getRange('B2')
+    .getValue();
+const TARGET_SHEET_NAME = SpreadsheetApp.getActiveSpreadsheet()
+    .getSheetByName('Upload_Link')
+    .getRange('B1')
+    .getValue();
 const SLIDE_TITLE = 'MEGA 資料分析 - 測試結果'; // 備用標題
 const TITLE_CELL = 'X2'; // 儲存格位置，用於取得投影片標題（根據 prompt 第12點）
 
