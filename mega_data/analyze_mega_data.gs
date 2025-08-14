@@ -20,6 +20,53 @@ const TARGET_CHART_TITLES = [
 // 投影片配置
 const MAX_CHARTS_PER_SLIDE = 3; // 每個投影片最多放三張圖片
 
+// 圖表位置和尺寸配置（根據 prompt 第11點的自訂樣式）
+const CHART_STYLE_CONFIG = {
+    // 固定高度：1.36 英寸，轉換為點數 (1 英寸 = 72 點)
+    FIXED_HEIGHT: 1.36 * 72, // 97.92 點
+
+    // 寬高比：5:1（根據 prompt 第7點）
+    ASPECT_RATIO: 5 / 1,
+
+    // 具體位置座標（英寸轉點數）
+    POSITIONS: [
+        { x: 0.21 * 72, y: 1.11 * 72 }, // 第一張圖片：X: 0.21", Y: 1.11"
+        { x: 2.94 * 72, y: 2.55 * 72 }, // 第二張圖片：X: 2.94", Y: 2.55"  
+        { x: 0.21 * 72, y: 3.98 * 72 }  // 第三張圖片：X: 0.21", Y: 3.98"
+    ]
+};
+
+/**
+ * 簡化執行函式 - 一鍵執行所有步驟
+ * @permission SpreadsheetApp, SlidesApp, DriveApp
+ */
+function executeAnalysis() {
+    Logger.log('='.repeat(50));
+    Logger.log('開始執行 MEGA 資料分析');
+    Logger.log('='.repeat(50));
+
+    try {
+        const result = analyzeMegaData();
+
+        Logger.log('='.repeat(50));
+        Logger.log('✅ 分析完成！');
+        Logger.log(`✅ 共處理 ${result.chartsProcessed} 個圖表`);
+        Logger.log(`✅ 建立 ${result.slidesCreated} 張投影片`);
+        Logger.log('✅ 請檢查目標 Google Slides 文件：');
+        Logger.log(`   https://docs.google.com/presentation/d/${PRESENTATION_ID}/edit`);
+        Logger.log('='.repeat(50));
+
+        return result;
+
+    } catch (error) {
+        Logger.log('='.repeat(50));
+        Logger.log('❌ 執行失敗！');
+        Logger.log(`❌ 錯誤: ${error.message}`);
+        Logger.log('='.repeat(50));
+        throw error;
+    }
+}
+
 /**
  * 主要執行函式 - 分析 MEGA 資料並建立投影片
  * @permission SpreadsheetApp, SlidesApp, DriveApp
@@ -293,10 +340,10 @@ function getChartTitle(chart) {
 }
 
 /**
- * 將圖表匯出為圖片檔
+ * 將圖表匯出為圖片檔（使用 insertSheetsChartAsImage 方法確保品質）
  * @param {Object[]} targetCharts 目標圖表物件陣列
  * @return {Object[]} 包含圖片 Blob 和標題的物件陣列
- * @permission DriveApp
+ * @permission SlidesApp, DriveApp
  */
 function exportChartsAsImages(targetCharts) {
     const chartData = [];
@@ -306,22 +353,83 @@ function exportChartsAsImages(targetCharts) {
             const chartInfo = targetCharts[i];
             Logger.log(`處理圖表: "${chartInfo.title}"`);
 
-            // 取得圖表的圖片
-            const chartBlob = chartInfo.chart.getBlob();
-            chartData.push({
-                blob: chartBlob,
-                title: chartInfo.title,
-                originalIndex: chartInfo.index
-            });
+            // 使用建議的方法：建立臨時 Slides 來匯出高品質圖片
+            const chartBlob = exportChartAsImageCorrectly(chartInfo.chart, chartInfo.title);
 
-            Logger.log(`圖表 "${chartInfo.title}" 轉換完成`);
+            if (chartBlob) {
+                chartData.push({
+                    blob: chartBlob,
+                    title: chartInfo.title,
+                    originalIndex: chartInfo.index
+                });
+
+                Logger.log(`圖表 "${chartInfo.title}" 轉換完成`);
+            } else {
+                Logger.log(`圖表 "${chartInfo.title}" 轉換失敗 - 無法取得圖片`);
+            }
 
         } catch (error) {
             Logger.log(`圖表 "${targetCharts[i].title}" 處理失敗: ${error.message}`);
+
+            // 如果高品質方法失敗，回退到基本方法
+            try {
+                const fallbackBlob = targetCharts[i].chart.getBlob();
+                chartData.push({
+                    blob: fallbackBlob,
+                    title: targetCharts[i].title,
+                    originalIndex: targetCharts[i].index
+                });
+                Logger.log(`圖表 "${targetCharts[i].title}" 使用回退方法轉換完成`);
+            } catch (fallbackError) {
+                Logger.log(`圖表 "${targetCharts[i].title}" 回退方法也失敗: ${fallbackError.message}`);
+            }
         }
     }
 
     return chartData;
+}
+
+/**
+ * 使用 insertSheetsChartAsImage 方法正確匯出圖表
+ * @param {EmbeddedChart} chart 圖表物件
+ * @param {string} chartTitle 圖表標題
+ * @return {Blob} 圖表的圖片 Blob
+ * @permission SlidesApp, DriveApp
+ */
+function exportChartAsImageCorrectly(chart, chartTitle) {
+    let tempSlides = null;
+
+    try {
+        // 建立臨時的 Google Slides
+        const tempName = `temp_chart_export_${Date.now()}`;
+        tempSlides = SlidesApp.create(tempName);
+        Logger.log(`建立臨時 Slides: ${tempName}`);
+
+        // 將圖表插入到 Slides 中並轉換為圖片
+        const slide = tempSlides.getSlides()[0];
+        const chartImage = slide.insertSheetsChartAsImage(chart);
+
+        // 取得圖片 Blob
+        const imageBlob = chartImage.getAs("image/png");
+
+        Logger.log(`圖表 "${chartTitle}" 成功透過 insertSheetsChartAsImage 匯出`);
+
+        return imageBlob;
+
+    } catch (error) {
+        Logger.log(`使用 insertSheetsChartAsImage 匯出圖表失敗: ${error.message}`);
+        return null;
+    } finally {
+        // 清理臨時 Slides 檔案
+        if (tempSlides) {
+            try {
+                DriveApp.getFileById(tempSlides.getId()).setTrashed(true);
+                Logger.log(`已刪除臨時 Slides 檔案`);
+            } catch (cleanupError) {
+                Logger.log(`刪除臨時檔案失敗: ${cleanupError.message}`);
+            }
+        }
+    }
 }
 
 /**
@@ -406,104 +514,55 @@ function addSlideTitle(slide, slideNumber = 1, totalSlides = 1) {
 
     // 文字置中
     titleText.getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.CENTER);
-}/**
- * 計算保持原始比例的排版（固定圖表高度為 1.4 英寸）
+}
+
+/**
+ * 計算自訂樣式排版（根據 prompt 第11點的具體要求）
  * @param {number} imageCount 圖片數量（最多3張）
  * @return {Object} 排版資訊
  */
 function calculateProportionalLayout(imageCount) {
-    const slideWidth = 720;
-    const slideHeight = 540;
-    const titleHeight = 50;  // 標題高度
-    const margin = 15;       // 邊距
-    const spacing = 8;       // 圖表間距
+    // 使用固定高度和寬高比計算寬度
+    const chartHeight = CHART_STYLE_CONFIG.FIXED_HEIGHT;
+    const chartWidth = chartHeight * CHART_STYLE_CONFIG.ASPECT_RATIO;
 
-    // 固定圖表高度為 1.4 英寸 (1.4 * 72 = 100.8 點)
-    const fixedChartHeight = 100.8;
+    const charts = [];
 
-    // 可用區域
-    const availableWidth = slideWidth - (2 * margin);
-    const availableHeight = slideHeight - titleHeight - (2 * margin);
+    // 根據圖片數量建立對應的位置配置
+    for (let i = 0; i < imageCount && i < CHART_STYLE_CONFIG.POSITIONS.length; i++) {
+        const position = CHART_STYLE_CONFIG.POSITIONS[i];
 
-    let layout;
-
-    if (imageCount === 1) {
-        // 單張圖片：居中顯示，使用固定高度
-        layout = {
-            arrangement: 'single',
-            charts: [{
-                x: margin,
-                y: titleHeight + margin,
-                width: availableWidth,
-                height: fixedChartHeight,
-                maintainAspectRatio: true
-            }]
-        };
-    } else if (imageCount === 2) {
-        // 兩張圖片：垂直排列，使用固定高度
-        layout = {
-            arrangement: 'vertical',
-            charts: [
-                {
-                    x: margin,
-                    y: titleHeight + margin,
-                    width: availableWidth,
-                    height: fixedChartHeight,
-                    maintainAspectRatio: true
-                },
-                {
-                    x: margin,
-                    y: titleHeight + margin + fixedChartHeight + spacing,
-                    width: availableWidth,
-                    height: fixedChartHeight,
-                    maintainAspectRatio: true
-                }
-            ]
-        };
-    } else if (imageCount === 3) {
-        // 三張圖片：垂直排列，使用固定高度
-        layout = {
-            arrangement: 'triple_vertical',
-            charts: [
-                {
-                    x: margin,
-                    y: titleHeight + margin,
-                    width: availableWidth,
-                    height: fixedChartHeight,
-                    maintainAspectRatio: true
-                },
-                {
-                    x: margin,
-                    y: titleHeight + margin + fixedChartHeight + spacing,
-                    width: availableWidth,
-                    height: fixedChartHeight,
-                    maintainAspectRatio: true
-                },
-                {
-                    x: margin,
-                    y: titleHeight + margin + (2 * fixedChartHeight) + (2 * spacing),
-                    width: availableWidth,
-                    height: fixedChartHeight,
-                    maintainAspectRatio: true
-                }
-            ]
-        };
+        charts.push({
+            x: position.x,
+            y: position.y,
+            width: chartWidth,
+            height: chartHeight,
+            maintainAspectRatio: true,
+            index: i + 1
+        });
     }
 
-    return {
-        ...layout,
-        slideWidth: slideWidth,
-        slideHeight: slideHeight,
-        availableWidth: availableWidth,
-        availableHeight: availableHeight,
-        margin: margin,
-        spacing: spacing,
-        fixedChartHeight: fixedChartHeight  // 新增固定圖表高度資訊
+    const layout = {
+        arrangement: `custom_${imageCount}`,
+        charts: charts,
+        slideWidth: 720,        // 標準投影片寬度
+        slideHeight: 540,       // 標準投影片高度
+        chartWidth: chartWidth,
+        chartHeight: chartHeight,
+        aspectRatio: CHART_STYLE_CONFIG.ASPECT_RATIO
     };
-}
 
-/**
- * 插入圖表並保持原始比例
+    Logger.log(`自訂樣式排版 - 圖片數量: ${imageCount}`);
+    Logger.log(`圖表尺寸: ${chartWidth.toFixed(1)}x${chartHeight.toFixed(1)} 點 (${(chartWidth / 72).toFixed(2)}"x${(chartHeight / 72).toFixed(2)}")`);
+    Logger.log(`寬高比: ${CHART_STYLE_CONFIG.ASPECT_RATIO}:1`);
+
+    charts.forEach((chart, index) => {
+        Logger.log(`圖片 ${index + 1} 位置: (${(chart.x / 72).toFixed(2)}", ${(chart.y / 72).toFixed(2)}")`);
+    });
+
+    return layout;
+}/**
+ * 插入圖表並使用自訂樣式排版（根據 prompt 第11點）
  * @param {Slide} slide 投影片物件
  * @param {Object[]} chartData 包含圖片 Blob 和標題的物件陣列
  * @param {Object} layout 排版資訊
@@ -520,35 +579,18 @@ function insertChartsWithOriginalProportions(slide, chartData, layout) {
             // 插入圖片
             const image = slide.insertImage(chartInfo.blob);
 
-            if (chartLayout.maintainAspectRatio) {
-                // 保持原始比例
-                const dimensions = calculateAspectRatioFitDimensions(
-                    chartLayout.width,
-                    chartLayout.height,
-                    chartInfo.blob
-                );
+            // 使用自訂樣式設定：固定尺寸和位置
+            image.setLeft(chartLayout.x);
+            image.setTop(chartLayout.y);
+            image.setWidth(chartLayout.width);
+            image.setHeight(chartLayout.height);
 
-                // 計算居中位置
-                const centeredX = chartLayout.x + (chartLayout.width - dimensions.width) / 2;
-                const centeredY = chartLayout.y + (chartLayout.height - dimensions.height) / 2;
+            Logger.log(`圖表 "${chartInfo.title}" 已插入`);
+            Logger.log(`  ➤ 位置: (${(chartLayout.x / 72).toFixed(2)}", ${(chartLayout.y / 72).toFixed(2)}")`);
+            Logger.log(`  ➤ 尺寸: ${(chartLayout.width / 72).toFixed(2)}"x${(chartLayout.height / 72).toFixed(2)}" (${chartLayout.width.toFixed(1)}x${chartLayout.height.toFixed(1)} 點)`);
+            Logger.log(`  ➤ 寬高比: ${(chartLayout.width / chartLayout.height).toFixed(2)}:1`);
 
-                image.setLeft(centeredX);
-                image.setTop(centeredY);
-                image.setWidth(dimensions.width);
-                image.setHeight(dimensions.height);
-
-                Logger.log(`圖表 "${chartInfo.title}" 已插入 (${centeredX}, ${centeredY}, ${dimensions.width}x${dimensions.height})`);
-            } else {
-                // 不保持比例（拉伸填滿）
-                image.setLeft(chartLayout.x);
-                image.setTop(chartLayout.y);
-                image.setWidth(chartLayout.width);
-                image.setHeight(chartLayout.height);
-
-                Logger.log(`圖表 "${chartInfo.title}" 已插入 (拉伸模式)`);
-            }
-
-            // 添加圖表標籤 - 已移除圖表標題顯示
+            // 不顯示圖表標題（根據需求第8點）
             // addChartLabelOptimized(slide, chartInfo.title, chartLayout, i);
 
         } catch (error) {
@@ -558,42 +600,31 @@ function insertChartsWithOriginalProportions(slide, chartData, layout) {
 }
 
 /**
- * 計算保持寬高比的適配尺寸（根據截圖優化）
+ * 計算保持寬高比的適配尺寸（已棄用 - 現在使用固定 5:1 比例）
+ * @deprecated 不再使用，改為使用固定 5:1 寬高比
  * @param {number} maxWidth 最大寬度
  * @param {number} maxHeight 最大高度
  * @param {Blob} imageBlob 圖片 Blob
  * @return {Object} 包含 width 和 height 的物件
  */
 function calculateAspectRatioFitDimensions(maxWidth, maxHeight, imageBlob) {
-    try {
-        // 根據指示要求，圖表寬高比設定為 5:1
-        // 這能確保圖表保持橫向寬版面的比例
-        const chartAspectRatio = 5 / 1; // 寬高比 5:1，符合需求規格
+    Logger.log('警告: calculateAspectRatioFitDimensions 已棄用，現在使用固定 5:1 比例');
 
-        // 根據可用空間計算最適尺寸
-        const widthBasedHeight = maxWidth / chartAspectRatio;
-        const heightBasedWidth = maxHeight * chartAspectRatio;
+    // 固定使用 5:1 寬高比
+    const chartAspectRatio = 5 / 1;
 
-        if (widthBasedHeight <= maxHeight) {
-            // 以寬度為準，高度自適應
-            return {
-                width: maxWidth,
-                height: widthBasedHeight
-            };
-        } else {
-            // 以高度為準，寬度自適應
-            return {
-                width: heightBasedWidth,
-                height: maxHeight
-            };
-        }
+    const widthBasedHeight = maxWidth / chartAspectRatio;
+    const heightBasedWidth = maxHeight * chartAspectRatio;
 
-    } catch (error) {
-        Logger.log(`計算寬高比時發生錯誤: ${error.message}`);
-        // 發生錯誤時，使用預設比例
+    if (widthBasedHeight <= maxHeight) {
         return {
             width: maxWidth,
-            height: maxWidth / (5 / 1) // 使用 5:1 比例
+            height: widthBasedHeight
+        };
+    } else {
+        return {
+            width: heightBasedWidth,
+            height: maxHeight
         };
     }
 }/**
@@ -731,6 +762,45 @@ function addChartLabel(slide, title, x, y, layout) {
     } catch (error) {
         Logger.log(`添加圖表標籤失敗: ${error.message}`);
     }
+}
+
+/**
+ * 測試自訂樣式排版 - 驗證新的位置和尺寸設定
+ * @permission None
+ */
+function testCustomStyleLayout() {
+    Logger.log('='.repeat(50));
+    Logger.log('測試自訂樣式排版設定');
+    Logger.log('='.repeat(50));
+
+    Logger.log('🎯 自訂樣式配置：');
+    Logger.log(`固定高度: ${CHART_STYLE_CONFIG.FIXED_HEIGHT.toFixed(1)} 點 (${(CHART_STYLE_CONFIG.FIXED_HEIGHT / 72).toFixed(2)} 英寸)`);
+    Logger.log(`寬高比: ${CHART_STYLE_CONFIG.ASPECT_RATIO}:1`);
+    Logger.log(`計算寬度: ${(CHART_STYLE_CONFIG.FIXED_HEIGHT * CHART_STYLE_CONFIG.ASPECT_RATIO).toFixed(1)} 點 (${((CHART_STYLE_CONFIG.FIXED_HEIGHT * CHART_STYLE_CONFIG.ASPECT_RATIO) / 72).toFixed(2)} 英寸)`);
+
+    Logger.log('\n📍 圖片位置設定：');
+    CHART_STYLE_CONFIG.POSITIONS.forEach((pos, index) => {
+        Logger.log(`圖片 ${index + 1}: X=${(pos.x / 72).toFixed(2)}" (${pos.x.toFixed(1)}點), Y=${(pos.y / 72).toFixed(2)}" (${pos.y.toFixed(1)}點)`);
+    });
+
+    Logger.log('\n🧪 測試不同圖片數量的排版：');
+
+    for (let imageCount = 1; imageCount <= 3; imageCount++) {
+        Logger.log(`\n--- ${imageCount} 張圖片的排版 ---`);
+        const layout = calculateProportionalLayout(imageCount);
+
+        Logger.log(`排版類型: ${layout.arrangement}`);
+        Logger.log(`使用位置數量: ${layout.charts.length}`);
+
+        layout.charts.forEach((chart, index) => {
+            Logger.log(`  圖片 ${index + 1}:`);
+            Logger.log(`    位置: (${(chart.x / 72).toFixed(2)}", ${(chart.y / 72).toFixed(2)}")`);
+            Logger.log(`    尺寸: ${(chart.width / 72).toFixed(2)}"x${(chart.height / 72).toFixed(2)}"`);
+        });
+    }
+
+    Logger.log('\n✅ 自訂樣式排版測試完成');
+    Logger.log('='.repeat(50));
 }
 
 /**
